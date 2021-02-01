@@ -1,12 +1,12 @@
 import functools
 import yaml
-
+import pkgutil
 
 def prod (l):
     return functools.reduce(lambda x, y: x*y, l)
 
 
-def rewrite_workload_bounds(src, dst, workload_bounds):
+def rewrite_workload_bounds(dst, workload_bounds):
     # print(workload_bounds)
     # mode, w, h, c, n, m, s, r, wpad, hpad, wstride, hstride, g, b = workload_bounds
     mode, w, h, c, n, m, s, r, wpad, hpad, wstride, hstride, g = workload_bounds
@@ -15,9 +15,12 @@ def rewrite_workload_bounds(src, dst, workload_bounds):
 
 
     if mode == "norm-conv":
-       
-        with open(src, "r") as f:
-            config = yaml.load(f, Loader = yaml.SafeLoader)
+        
+        # Modify (Feb 1, 2021) - Kyungmi
+        # Use the util function instead of using the relative path file loading
+        # with open(src, "r") as f:
+        #     config = yaml.load(f, Loader = yaml.SafeLoader)
+        config = get_convolution_workload()
 
         config['problem']['instance']['R'] = r
         config['problem']['instance']['S'] = s
@@ -35,8 +38,10 @@ def rewrite_workload_bounds(src, dst, workload_bounds):
     
     elif mode == "depth-wise":
 
-        with open(src, "r") as f:
-            config = yaml.load(f, Loader = yaml.SafeLoader)
+        # Similar as the above modification
+        # with open(src, "r") as f:
+        #     config = yaml.load(f, Loader = yaml.SafeLoader)
+        config = get_depthwise_workload()
 
         config['problem']['instance']['R'] = r
         config['problem']['instance']['S'] = s
@@ -62,4 +67,12 @@ def rewrite_workload_bounds(src, dst, workload_bounds):
     print("workload file --> {}".format(dst))
     
 
+def get_convolution_workload():
+    f = pkgutil.get_data("converter", "utils/convolution.yaml")
+    config_conv = yaml.load(f, Loader = yaml.SafeLoader)
+    return config_conv
 
+def get_depthwise_workload():
+    f = pkgutil.get_data("converter", "utils/depth_wise_convolution.yaml")
+    config_depth = yaml.load(f, Loader = yaml.SafeLoader)
+    return config_depth

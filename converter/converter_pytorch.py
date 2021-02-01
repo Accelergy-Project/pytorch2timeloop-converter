@@ -123,16 +123,19 @@ def model_converter_pytorch(model, input_size, batch_size, model_name, save_dir,
     outdir = os.path.join(save_dir, model_name)
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-    this_file_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
-    this_directory = os.path.dirname(this_file_path)
-    config_abspath_conv =  os.path.join(this_directory, 'utils/convolution.yaml')
-    config_abspath_depth = os.path.join(this_directory, 'utils/depth_wise_convolution.yaml')
+
+    # Modify (Feb 1, 2021) - Kyungmi
+    # Remove relative path calling and replace with util function
+    # this_file_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
+    # this_directory = os.path.dirname(this_file_path)
+    # config_abspath_conv =  os.path.join(this_directory, 'utils/convolution.yaml')
+    # config_abspath_depth = os.path.join(this_directory, 'utils/depth_wise_convolution.yaml')
 
     # test for valid config files
-    with open(config_abspath_conv, 'r') as f:
-        config_conv = yaml.load(f, Loader = yaml.SafeLoader)
-    with open(config_abspath_depth, 'r') as f:
-        config_depth = yaml.load(f, Loader = yaml.SafeLoader)
+    # with open(config_abspath_conv, 'r') as f:
+    #     config_conv = yaml.load(f, Loader = yaml.SafeLoader)
+    # with open(config_abspath_depth, 'r') as f:
+    #     config_depth = yaml.load(f, Loader = yaml.SafeLoader)
     
     # make the problem file for each layer
     for i in range(0, len(layer_list)):
@@ -141,9 +144,9 @@ def model_converter_pytorch(model, input_size, batch_size, model_name, save_dir,
         file_name = model_name + '_' + 'layer' + str(i+1) + '.yaml'
         file_path = os.path.abspath(os.path.join(save_dir, model_name, file_name))
         if layer_type == 'norm-conv':
-            rewrite_workload_bounds(config_abspath_conv, file_path, problem)
+            rewrite_workload_bounds(file_path, problem)
         elif layer_type == 'depth-wise':
-            rewrite_workload_bounds(config_abspath_depth, file_path, problem)
+            rewrite_workload_bounds(file_path, problem)
         else:
             print("Error: DNN Layer Type Not Supported")
             return
