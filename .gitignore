@@ -1,0 +1,12 @@
+**/__pycache__
+**/data
+**/.local
+**/.profile
+**/.ipynb_checkpoints
+**/.bashrc
+**/.cache
+**/.ipython
+**/.workloads
+**/.config
+**/.jupyter
+
