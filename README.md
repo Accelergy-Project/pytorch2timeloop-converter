@@ -13,7 +13,7 @@ After cloning this repository, run `python setup.py install` to finish the insta
 ### Using the converter
 ```python
 import torchvision.models as models
-import converter
+import pytorch2timeloop
 
 # Define a pytorch-based neural network model, for example, a pre-defined alexnet from torchvision.
 net = models.alexnet()
@@ -38,7 +38,7 @@ sub_dir = 'alexnet'
 exception_module_names = []
 
 # Now, convert!
-converter.model_converter_pytorch(net, input_shape, batch_size, sub_dir, top_dir, exception_module_names)
+pytorch2timeloop.convert_model(net, input_shape, batch_size, sub_dir, top_dir, exception_module_names)
 ```
 
 ---

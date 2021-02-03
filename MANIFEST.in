@@ -1,2 +1,2 @@
-graft converter/
+graft pytorch2timeloop/
 global-exclude *.pyc

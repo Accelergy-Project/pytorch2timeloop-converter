@@ -14,7 +14,7 @@ from torch.autograd import Variable
 from collections import OrderedDict
 import numpy as np
 
-from converter.utils.construct_workloads import *
+from pytorch2timeloop.utils.construct_workloads import *
 
 """ 
 This section of code is taken directly from the github repo https://github.com/sksq96/pytorch-summary
@@ -100,7 +100,7 @@ Designed to extract info about convolutional layers from a model.
 Returns a nested list with information about each convolutional layer
 in the form of [in_ch, out_ch, kernel_w, kernel_h, w_stride, h_stride, w_pad, h_pad]
 '''
-def model_converter_pytorch(model, input_size, batch_size, model_name, save_dir, exception_module_names=[]):
+def convert_model(model, input_size, batch_size, model_name, save_dir, exception_module_names=[]):
 
     print("converting {} model ...".format(model_name))
 

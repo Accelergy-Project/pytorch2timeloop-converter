@@ -68,11 +68,11 @@ def rewrite_workload_bounds(dst, workload_bounds):
     
 
 def get_convolution_workload():
-    f = pkgutil.get_data("converter", "utils/convolution.yaml")
+    f = pkgutil.get_data("pytorch2timeloop", "utils/convolution.yaml")
     config_conv = yaml.load(f, Loader = yaml.SafeLoader)
     return config_conv
 
 def get_depthwise_workload():
-    f = pkgutil.get_data("converter", "utils/depth_wise_convolution.yaml")
+    f = pkgutil.get_data("pytorch2timeloop", "utils/depth_wise_convolution.yaml")
     config_depth = yaml.load(f, Loader = yaml.SafeLoader)
     return config_depth

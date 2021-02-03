@@ -1,1 +1,0 @@
-from .converter_pytorch import model_converter_pytorch
