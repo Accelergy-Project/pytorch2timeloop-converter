@@ -14,7 +14,7 @@ def rewrite_workload_bounds(dst, workload_bounds):
     p = int((h - r + 2 * hpad) / hstride) + 1
 
 
-    if mode == "norm-conv":
+    if mode == "norm-conv" or mode == 'linear':
         
         # Modify (Feb 1, 2021) - Kyungmi
         # Use the util function instead of using the relative path file loading

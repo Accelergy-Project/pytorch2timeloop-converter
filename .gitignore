@@ -62,3 +62,7 @@ coverage.xml
 
 # TensorCanvas tmp file
 tmp.mp4
+
+# Others
+test.py
+workloads/
