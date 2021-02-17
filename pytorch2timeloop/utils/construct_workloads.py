@@ -13,8 +13,9 @@ def rewrite_workload_bounds(dst, workload_bounds):
     q = int((w - s + 2 * wpad) / wstride) + 1
     p = int((h - r + 2 * hpad) / hstride) + 1
 
-
-    if mode == "norm-conv" or mode == 'linear':
+    # Fix: Feb 17, 2021
+    # Disable the mode selection
+    if mode == "norm-conv" or mode == 'linear' or mode == 'depth-wise':
         
         # Modify (Feb 1, 2021) - Kyungmi
         # Use the util function instead of using the relative path file loading
@@ -31,11 +32,20 @@ def rewrite_workload_bounds(dst, workload_bounds):
         config['problem']['instance']['N'] = n
         config['problem']['instance']['Wstride'] = wstride
         config['problem']['instance']['Hstride'] = hstride
+        config['problem']['instance']['Groups'] = g
 
         with open(dst, "w") as f:
             f.write(yaml.dump(config))
 
+    # Fix: Feb 17, 2021
+    # Disable the mode "depth-wise" template as currently does not support 'M' dimension
     
+    else:    
+        print("Error: DNN Layer Type Not Supported")
+        return
+
+
+    """
     elif mode == "depth-wise":
 
         # Similar as the above modification
@@ -55,13 +65,7 @@ def rewrite_workload_bounds(dst, workload_bounds):
 
         with open(dst, "w") as f:
             f.write(yaml.dump(config))
-    
-
-    else:
-        
-        print("Error: DNN Layer Type Not Supported")
-        return
-
+    """
     
     # print("scaffold file --> {}".format(src))
     print("workload file --> {}".format(dst))

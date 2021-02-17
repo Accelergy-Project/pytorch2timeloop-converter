@@ -224,6 +224,8 @@ def extract_layer_data(model, input_size, convert_fc=False, exception_module_nam
             data[layer_number]['mode'] = 'norm-conv'
             if data[layer_number]['groups'] > 1 and data[layer_number]['groups'] == data[layer_number]['in_channels']:
                 data[layer_number]['mode'] = 'depth-wise'
+                data[layer_number]['in_channels'] = 1
+                data[layer_number]['out_channels'] = 1
                 
         elif isinstance(conv, nn.Linear):
             
