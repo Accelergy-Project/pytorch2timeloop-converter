@@ -1,5 +1,6 @@
 # pytorch2timeloop-converter
-Converting pytorch nn.Conv2d modules, which describe 2D convolutional layers in neural networks, to timeloop workload yaml files. 
+
+Converting pytorch convolutional neural nets and certain transformers to Timeloop workload files.
 
 ### Installing the converter
 After cloning this repository, run `python setup.py install` to finish the installation. Note that this converter has been developed and tested with: 
