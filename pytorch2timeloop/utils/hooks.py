@@ -97,7 +97,7 @@ def _linear_hook(summary, batch_size):
             h_stride=1,
             w_pad=0,
             h_pad=0,
-            n=batch_size * input_size[1],
+            n=batch_size,
             name="linear"
         )
         summary.append(description)
