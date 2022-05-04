@@ -83,6 +83,7 @@ def _linear_hook(summary, batch_size):
     :return: a PyTorch module forward hook to collect a `LayerDescription` about this fully connected layer
     """
     def hook(module, input, output):
+        print(str(id(module)) + str(module))
         input_size = input[0].size()
         assert input_size[1] >= 0
         description = ConvLayerDescription(
@@ -115,15 +116,18 @@ def _layer_norm_hook(summary, batch_size):
 
     def hook(module, input, output):
         if module.elementwise_affine:
+            print(str(id(module)) + str(module))
             input_shape = input[0].size()
             assert input_shape[1] >= 0
             description = ConvLayerDescription(
-                w=input_shape[2],
-                h=1,
+                h=input_shape[2],
+                w=1,
                 c=1,
                 m=1,
-                s=input_shape[2],
-                r=1,
+                r=input_shape[2],
+                s=1,
+                #s=input_shape[1],
+                #r=input_shape[2],
                 w_stride=1,
                 h_stride=1,
                 w_pad=0,
@@ -135,8 +139,7 @@ def _layer_norm_hook(summary, batch_size):
 
     return hook
 
-
-def _multihead_self_attention(summary, batch_size):
+def _albert_multihead_self_attention(summary, batch_size):
     """
     A hook for multi-head self-attention layers.
 
@@ -167,6 +170,130 @@ def _multihead_self_attention(summary, batch_size):
             batch_size=batch_size * module.num_attention_heads,
             name="attention_context"
         )
+
+        input_shape = input[0].shape
+        print(str(id(module.dense)) + str(module.dense))
+        #print(str(id(module.LayerNorm)) + str(module.LayerNorm))
+        ffn_desc = ConvLayerDescription(
+            w=1,
+            h=1,
+            c=module.dense.in_features,
+            m=module.dense.out_features,
+            s=1,
+            r=1,
+            w_stride=1,
+            h_stride=1,
+            w_pad=0,
+            h_pad=0,
+            n=batch_size * input_shape[1],
+            name="linear"
+        )
+
+        """
+        layer_norm = ConvLayerDescription(
+            h=input_shape[2],
+            w=1,
+            c=1,
+            m=1,
+            r=input_shape[2],
+            s=1,
+            w_stride=1,
+            h_stride=1,
+            w_pad=0,
+            h_pad=0,
+            n=batch_size * input_shape[1],
+            name="layer_norm"
+        )
+        """
+
+        summary.append(scores)
+        summary.append(context)
+        summary.append(ffn_desc)
+        #summary.append(layer_norm)
+
+    return hook
+
+def _albert_layer(summary, batch_size):
+    def hook(module, input, output):
+        print(str(id(module.ffn)) + str(module.ffn))
+        #print(str(id(module.full_layer_layer_norm)) + str(module.full_layer_layer_norm))
+        #  module.full_layer_layer_norm
+        #import pdb; pdb.set_trace()
+        """
+        input_shape = input[0].size()
+        assert input_shape[1] >= 0
+        description = ConvLayerDescription(
+            h=input_shape[2],
+            w=1,
+            c=1,
+            m=1,
+            r=input_shape[2],
+            s=1,
+            w_stride=1,
+            h_stride=1,
+            w_pad=0,
+            h_pad=0,
+            n=batch_size * input_shape[1],
+            name="layer_norm"
+        )
+
+        summary.append(description)
+
+        input_size = input[0].size()
+        assert input_size[1] >= 0
+        description = ConvLayerDescription(
+            w=1,
+            h=1,
+            c=module.ffn.in_features,
+            m=module.ffn.out_features,
+            s=1,
+            r=1,
+            w_stride=1,
+            h_stride=1,
+            w_pad=0,
+            h_pad=0,
+            n=batch_size * input_size[1],
+            name="linear"
+        )
+
+        summary.append(description)
+        """
+
+    return hook 
+
+def _multihead_self_attention(summary, batch_size):
+    """
+    A hook for multi-head self-attention layers.
+
+    Currently, this is designed only to extract data from the self-attention layer defined in
+    `transformers.models.bert.modeling_bert.BertSelfAttention`. It should be quite simple to adapt to other
+    transformers with similar self-attention mechanisms, though.
+
+    :param summary: the summary list we are adding to
+    :param batch_size: the input batch size
+    :return: a PyTorch module forward hook to collect a `LayerDescription` about this multi-head self-attention layer
+    """
+    def hook(module, input, output):
+        assert input != ()
+        x = input[0]
+        print(id(module))
+        head_size = module.attention_head_size
+        sequence_length = x.shape[1]
+        scores = MatrixMatrixMultiplyLayerDescription(
+            m=sequence_length,
+            k=head_size,
+            n=sequence_length,
+            batch_size=batch_size * module.num_attention_heads,
+            name="attention_scores"
+        )
+        context = MatrixMatrixMultiplyLayerDescription(
+            m=sequence_length,
+            k=sequence_length,
+            n=head_size,
+            batch_size=batch_size * module.num_attention_heads,
+            name="attention_context"
+        )
+
         summary.append(scores)
         summary.append(context)
 
@@ -188,7 +315,7 @@ null_ops = (
     nn.Tanh,
     transformers.models.bert.modeling_bert.BertSelfOutput,
     transformers.models.bert.modeling_bert.BertEmbeddings,
-    transformers.models.bert.modeling_bert.BertIntermediate,
+    #transformers.models.bert.modeling_bert.BertIntermediate,
     transformers.models.bert.modeling_bert.BertOutput,
     transformers.models.bert.modeling_bert.BertAttention,
     transformers.models.bert.modeling_bert.BertLayer,
@@ -196,6 +323,11 @@ null_ops = (
     transformers.models.bert.modeling_bert.BertPooler,
     transformers.models.bert.modeling_bert.BertModel,
     transformers.models.bert.modeling_bert.BertForSequenceClassification,
+    transformers.models.albert.modeling_albert.AlbertModel,
+    transformers.models.albert.modeling_albert.AlbertTransformer,
+    transformers.models.albert.modeling_albert.AlbertLayerGroup,
+    transformers.models.albert.modeling_albert.AlbertEmbeddings,
+    transformers.models.albert.modeling_albert.AlbertLayer
 )
 
 
@@ -224,5 +356,13 @@ def hook_for(module: nn.Module, summary: list, batch_size: int, convert_fc=False
             return _layer_norm_hook(summary, batch_size)
     elif isinstance(module, transformers.models.bert.modeling_bert.BertSelfAttention):
         return _multihead_self_attention(summary, batch_size)
+    elif isinstance(module, transformers.models.albert.modeling_albert.AlbertAttention):
+        return _albert_multihead_self_attention(summary, batch_size)
+    elif isinstance(module, transformers.models.albert.modeling_albert.AlbertLayer):
+        return _albert_layer(summary, batch_size)
+    elif isinstance(module, transformers.models.bert.modeling_bert.BertIntermediate):
+        return _null_hook(summary, batch_size)
+
+        #return _bert_intermediate(summary, batch_size)
 
     print("unknown module type", module.__class__)

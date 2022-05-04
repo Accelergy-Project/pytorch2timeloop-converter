@@ -32,7 +32,7 @@ def convert_model_with_sample_input(model: nn.Module, sample_input: Any, batch_s
     _convert_from_layer_data(layer_data, model_name, save_dir)
 
 
-def convert_model(model: nn.Module, input_size: tuple, batch_size: int, model_name: str, save_dir: str, convert_fc=False, exception_module_names=[]):
+def convert_model(model: nn.Module, input_size: tuple, batch_size: int, model_name: str, save_dir: str, convert_fc=False, is_text=False, exception_module_names=[]):
     """
     Convert a PyTorch CNN model to Timeloop problem files.
 
@@ -50,8 +50,11 @@ def convert_model(model: nn.Module, input_size: tuple, batch_size: int, model_na
     """
 
     print("converting {} in {} model ...".format("nn.Conv2d" if not convert_fc else "nn.Conv2d and nn.Linear", model_name))
-
-    sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
+    
+    if is_text:
+        sample_input = torch.randint(0, 20000, input_size).type(torch.LongTensor)
+    else:
+        sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
     layer_data = _extract_layer_data(model, sample_input, convert_fc=convert_fc,
                                      exception_module_names=exception_module_names, batch_size=batch_size)
     _convert_from_layer_data(layer_data, model_name, save_dir)
@@ -78,6 +81,9 @@ def _make_summary(model, sample_input, convert_fc=False, batch_size=1):
             model(*sample_input)
         except TypeError:
             model(sample_input)
+        except Exception as e:
+            model(sample_input)
+            #import pdb; pdb.set_trace()
 
     # remove these hooks
     for h in hooks:
