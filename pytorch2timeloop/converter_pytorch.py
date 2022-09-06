@@ -1,5 +1,6 @@
 """ Convert Trained PyTorch Models to Workloads """
 
+import logging
 import os
 from typing import Any
 
@@ -8,6 +9,8 @@ import yaml
 
 from pytorch2timeloop.utils.hooks import hook_for
 from torch import nn
+
+logger = logging.getLogger(__name__)
 
 
 def convert_model_with_sample_input(model: nn.Module, sample_input: Any, batch_size: int, model_name: str, save_dir: str, exception_module_names=[]):
@@ -25,7 +28,7 @@ def convert_model_with_sample_input(model: nn.Module, sample_input: Any, batch_s
     :param save_dir: the directory to save the output in
     :param exception_module_names: a list of fragments of module names to ignore (can be a prefix, suffix, or infix).
     """
-    print("converting {} in {} model ...".format("all", model_name))
+    logger.info("converting {} in {} model ...".format("all", model_name))
 
     layer_data = _extract_layer_data(model, sample_input, convert_fc=True, batch_size=batch_size,
                                      exception_module_names=exception_module_names)
@@ -49,7 +52,7 @@ def convert_model(model: nn.Module, input_size: tuple, batch_size: int, model_na
     :param exception_module_names: a list of fragments of module names to ignore (can be a prefix, suffix, or infix).
     """
 
-    print("converting {} in {} model ...".format("nn.Conv2d" if not convert_fc else "nn.Conv2d and nn.Linear", model_name))
+    logger.info("converting {} in {} model ...".format("nn.Conv2d" if not convert_fc else "nn.Conv2d and nn.Linear", model_name))
 
     sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
     layer_data = _extract_layer_data(model, sample_input, convert_fc=convert_fc,
@@ -110,4 +113,4 @@ def _convert_from_layer_data(layer_data, model_name, save_dir):
         with open(file_path, 'w') as f:
             f.write(yaml.dump(problem.to_yaml()))
 
-    print("conversion complete!\n")
+    logger.info("conversion complete!\n")
