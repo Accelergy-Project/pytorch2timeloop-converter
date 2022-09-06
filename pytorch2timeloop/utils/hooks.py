@@ -12,12 +12,15 @@ To add support for a new layer type, add a new hook type and return it from hook
 You may also need to add a new `LayerDescription` if the layer is very different from the ones that are already here.
 """
 
+import logging
 from typing import Optional, Callable, Any
 
 import torch.nn as nn
 import transformers.models.distilbert.modeling_distilbert
 
 from pytorch2timeloop.utils.layer_descriptions import DepthWiseConvLayerDescription, ConvLayerDescription, MatrixMatrixMultiplyLayerDescription
+
+logger = logging.getLogger(__name__)
 
 
 def _null_hook(summary, batch_size):
@@ -225,4 +228,4 @@ def hook_for(module: nn.Module, summary: list, batch_size: int, convert_fc=False
     elif isinstance(module, transformers.models.bert.modeling_bert.BertSelfAttention):
         return _multihead_self_attention(summary, batch_size)
 
-    print("unknown module type", module.__class__)
+    logger.warning("unknown module type %s", module.__class__)
