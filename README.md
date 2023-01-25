@@ -8,7 +8,7 @@ After cloning this repository, run `python setup.py install` to finish the insta
 - python 3.7
 - pytorch 1.7.1
 - torchvision 0.8.2
-- numpy 1.19.2
+- numpy 1.21.2
 - pyyaml 5.3.1
 
 ### Using the converter
