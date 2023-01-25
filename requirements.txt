@@ -2,3 +2,4 @@ torch==1.7
 torchvision==0.8
 numpy==1.19
 pyyaml==5.3
+transformers==4.26.0
