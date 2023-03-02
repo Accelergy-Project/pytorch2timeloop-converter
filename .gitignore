@@ -66,3 +66,6 @@ tmp.mp4
 # Others
 test.py
 workloads/
+
+# Test results
+.test.tmp

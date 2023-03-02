@@ -1,5 +1,5 @@
-torch==1.7
-torchvision==0.8
+torch==1.13.1
+torchvision==0.14
 numpy==1.21
 pyyaml==5.3
 transformers==4.26.0
