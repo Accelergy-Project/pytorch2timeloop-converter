@@ -1,0 +1,49 @@
+problem:
+  shape:
+    name: "CNN-Layer"
+    dimensions: [ C, M, R, S, N, P, Q ]
+    coefficients:
+      - name: Wstride
+        default: 1
+      - name: Hstride
+        default: 1
+      - name: Wdilation
+        default: 1
+      - name: Hdilation
+        default: 1
+    data-spaces:
+      - name: Weights
+        projection:
+          - [ [G] ]
+          - [ [C] ]
+          - [ [M] ]
+          - [ [R] ]
+          - [ [S] ]
+      - name: Inputs
+        projection:
+          - [ [N] ]
+          - [ [G] ]
+          - [ [C] ]
+          - [ [R, Wdilation], [P, Wstride] ] # SOP form: R*Wdilation + P*Wstride
+          - [ [S, Hdilation], [Q, Hstride] ] # SOP form: S*Hdilation + Q*Hstride
+      - name: Outputs
+        projection:
+          - [ [N] ]
+          - [ [G] ]
+          - [ [M] ]
+          - [ [Q] ]
+          - [ [P] ]
+        read-write: True
+  instance:
+    G: 2
+    C: 16
+    M: 32
+    N: 1
+    P: 10
+    Q: 10
+    R: 5
+    S: 5
+    Wdilation: 1
+    Wstride: 1
+    Hdilation: 1
+    Hstride: 1

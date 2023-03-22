@@ -50,3 +50,28 @@ class TestSimpleCNN(unittest.TestCase):
             save_dir=TMP_TEST_DIR,
             exception_module_names=[]
         )
+
+class GroupedCNN(nn.Module):
+    def __init__(self):
+        super(GroupedCNN, self).__init__()
+        self.conv1 = nn.Conv2d(4, 8, 5, groups=2, padding=2)
+
+    def forward(self, x):
+        return self.conv1(x)
+
+class TestGroupedConv(unittest.TestCase):
+    def setUp(self):
+        self.net = GroupedCNN()
+        self.input_size = (4, 28, 28)
+        self.batch_size = 1
+
+    def test_grouped_conv(self):
+        pytorch2timeloop.convert_model(
+            model=self.net,
+            input_size=self.input_size,
+            batch_size=self.batch_size,
+            convert_fc=False,
+            model_name='grouped_conv',
+            save_dir=TMP_TEST_DIR,
+            exception_module_names=[]
+        )

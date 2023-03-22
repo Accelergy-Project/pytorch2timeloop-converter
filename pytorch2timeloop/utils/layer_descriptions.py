@@ -75,6 +75,29 @@ class ConvLayerDescription(BaseConvLayerDescription):
         config['problem']['instance']['M'] = self.m
         return config
 
+@dataclass
+class GroupedConvLayerDescription(BaseConvLayerDescription):
+    problem_template = "grouped_convolution"
+    g: int
+    m: int
+
+    w: int
+    h: int
+    c: int
+    n: int
+    s: int
+    r: int
+    w_pad: int
+    h_pad: int
+    w_stride: int
+    h_stride: int
+    n: int
+
+    def to_yaml(self):
+        config = super().to_yaml()
+        config['problem']['instance']['G'] = self.g
+        config['problem']['instance']['M'] = self.m
+        return config
 
 @dataclass()
 class DepthWiseConvLayerDescription(BaseConvLayerDescription):
