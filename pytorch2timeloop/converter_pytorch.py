@@ -13,6 +13,15 @@ from torch import nn
 logger = logging.getLogger(__name__)
 
 
+def extract_layer_data(model: nn.Module, input_size: tuple, batch_size: int, model_name: str, convert_fc=True, exception_module_names=[]):
+    sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
+    return _extract_layer_data(model,
+                               sample_input,
+                               convert_fc=convert_fc,
+                               batch_size=batch_size,
+                               exception_module_names=exception_module_names)
+
+
 def convert_model_with_sample_input(model: nn.Module, sample_input: Any, batch_size: int, model_name: str, save_dir: str, exception_module_names=[]):
     """
     Convert a general PyTorch model to Timeloop problem files.
