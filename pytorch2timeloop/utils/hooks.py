@@ -1,15 +1,22 @@
 """
-Definitions of forward hooks for various PyTorch layer types, to extract `LayerDescription`s from them during evaluation.
+Definitions of forward hooks for various PyTorch layer types, to extract
+`LayerDescription`s from them during evaluation.
 
-For many layer types, such as 2D convolutions and self-attention mechanisms, the layer itself does not know all of the
-information needed to generate a Timeloop workload: for example, a convolutional layer does not explicitly define its
-input size. As a result, we need to extract this information while _evaluating_ the model.
+For many layer types, such as 2D convolutions and self-attention
+mechanisms, the layer itself does not know all of the information needed
+to generate a Timeloop workload: for example, a convolutional layer does
+not explicitly define its input size. As a result, we need to extract
+this information while _evaluating_ the model.
 
-The easiest mechanism for doing this is a PyTorch forward hook. This file defines hooks for various layer types,
-with a primary interface consisting of the function `hook_for()`, which returns a hook for the given layer.
+The easiest mechanism for doing this is a PyTorch forward hook. This
+file defines hooks for various layer types, with a primary interface
+consisting of the function `hook_for()`, which returns a hook for the
+given layer.
 
-To add support for a new layer type, add a new hook type and return it from hook_for() with the appropriate conditions.
-You may also need to add a new `LayerDescription` if the layer is very different from the ones that are already here.
+To add support for a new layer type, add a new hook type and return it
+from hook_for() with the appropriate conditions.  You may also need to
+add a new `LayerDescription` if the layer is very different from the
+ones that are already here.
 """
 
 import logging
@@ -18,7 +25,11 @@ from typing import Optional, Callable, Any
 import torch.nn as nn
 import transformers.models.distilbert.modeling_distilbert
 
-from pytorch2timeloop.utils.layer_descriptions import DepthWiseConvLayerDescription, ConvLayerDescription, MatrixMatrixMultiplyLayerDescription
+from pytorch2timeloop.utils.layer_descriptions import (
+    DepthWiseConvLayerDescription,
+    ConvLayerDescription,
+    MatrixMatrixMultiplyLayerDescription
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +43,7 @@ def _null_hook(summary, batch_size):
     return hook
 
 
-def _conv_hook(summary, batch_size):
+def _conv_hook(summary, batch_size, name: str=None):
     """
     A hook for convolutional (including depth-wise convolutional) layers, based on nn.Conv2d.
 
@@ -40,6 +51,8 @@ def _conv_hook(summary, batch_size):
     :param batch_size: the input batch size
     :return: a PyTorch module forward hook to collect a `LayerDescription` about this convolutional layer
     """
+    if name is None:
+        name = 'conv_layer'
     def hook(module, input, output):
         input_shape = input[0].size()
         if module.groups > 1 and module.groups == module.in_channels:
@@ -55,7 +68,7 @@ def _conv_hook(summary, batch_size):
                 w_pad=module.padding[0],
                 h_pad=module.padding[1],
                 n=batch_size,
-                name="conv_layer"
+                name=name
             )
         else:
             description = ConvLayerDescription(
@@ -70,14 +83,14 @@ def _conv_hook(summary, batch_size):
                 w_pad=module.padding[0],
                 h_pad=module.padding[1],
                 n=batch_size,
-                name="conv_layer"
+                name=name
             )
         summary.append(description)
 
     return hook
 
 
-def _linear_hook(summary, batch_size):
+def _linear_hook(summary, batch_size, name: str=None):
     """
     A hook for linear (i.e., fully connected) layers, based on nn.Linear.
 
@@ -85,6 +98,8 @@ def _linear_hook(summary, batch_size):
     :param batch_size: the input batch size
     :return: a PyTorch module forward hook to collect a `LayerDescription` about this fully connected layer
     """
+    if name is None:
+        name = 'linear'
     def hook(module, input, output):
         input_size = input[0].size()
         assert input_size[1] >= 0
@@ -100,14 +115,14 @@ def _linear_hook(summary, batch_size):
             w_pad=0,
             h_pad=0,
             n=batch_size,
-            name="linear"
+            name=name
         )
         summary.append(description)
 
     return hook
 
 
-def _layer_norm_hook(summary, batch_size):
+def _layer_norm_hook(summary, batch_size, name: str=None):
     """
     A hook for layer norm layers, based on nn.LayerNorm.
 
@@ -115,7 +130,8 @@ def _layer_norm_hook(summary, batch_size):
     :param batch_size: the input batch size
     :return: a PyTorch module forward hook to collect a `LayerDescription` about this layer norm layer.
     """
-
+    if name is None:
+        name = 'layer_norm'
     def hook(module, input, output):
         if module.elementwise_affine:
             input_shape = input[0].size()
@@ -132,14 +148,14 @@ def _layer_norm_hook(summary, batch_size):
                 w_pad=0,
                 h_pad=0,
                 n=batch_size * input_shape[1],
-                name="layer_norm"
+                name=name
             )
         summary.append(description)
 
     return hook
 
 
-def _multihead_self_attention(summary, batch_size):
+def _multihead_self_attention(summary, batch_size, name: str=None):
     """
     A hook for multi-head self-attention layers.
 
@@ -151,6 +167,8 @@ def _multihead_self_attention(summary, batch_size):
     :param batch_size: the input batch size
     :return: a PyTorch module forward hook to collect a `LayerDescription` about this multi-head self-attention layer
     """
+    if name is None:
+        name = 'attention'
     def hook(module, input, output):
         assert input != ()
         x = input[0]
@@ -161,14 +179,14 @@ def _multihead_self_attention(summary, batch_size):
             k=head_size,
             n=sequence_length,
             batch_size=batch_size * module.num_attention_heads,
-            name="attention_scores"
+            name=f'{name}_scores'
         )
         context = MatrixMatrixMultiplyLayerDescription(
             m=sequence_length,
             k=sequence_length,
             n=head_size,
             batch_size=batch_size * module.num_attention_heads,
-            name="attention_context"
+            name=f'{name}_context'
         )
         summary.append(scores)
         summary.append(context)
@@ -202,7 +220,7 @@ null_ops = (
 )
 
 
-def hook_for(module: nn.Module, summary: list, batch_size: int, convert_fc=False) -> Optional[Callable[[nn.Module, Any, Any], None]]:
+def hook_for(module: nn.Module, summary: list, batch_size: int, convert_fc=False, name: str=None) -> Optional[Callable[[nn.Module, Any, Any], None]]:
     """
     Return the hook, if any, for the given layer type.
 
@@ -216,16 +234,16 @@ def hook_for(module: nn.Module, summary: list, batch_size: int, convert_fc=False
     """
 
     if isinstance(module, nn.Linear) and convert_fc:
-        return _linear_hook(summary, batch_size)
+        return _linear_hook(summary, batch_size, name)
     elif isinstance(module, nn.Conv2d):
-        return _conv_hook(summary, batch_size)
+        return _conv_hook(summary, batch_size, name)
     elif isinstance(module, null_ops):
         # Dropout is not used during inference
         return _null_hook(summary, batch_size)
     elif isinstance(module, nn.LayerNorm):
         if module.elementwise_affine:
-            return _layer_norm_hook(summary, batch_size)
+            return _layer_norm_hook(summary, batch_size, name)
     elif isinstance(module, transformers.models.bert.modeling_bert.BertSelfAttention):
-        return _multihead_self_attention(summary, batch_size)
+        return _multihead_self_attention(summary, batch_size, name)
 
     logger.warning("unknown module type %s", module.__class__)
