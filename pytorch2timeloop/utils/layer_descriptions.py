@@ -20,7 +20,8 @@ class LayerDescription:
     name: Optional[str]
 
     def get_workload(self):
-        f = pkgutil.get_data("pytorch2timeloop", f"utils/{self.problem_template}.yaml")
+        f = pkgutil.get_data("pytorch2timeloop",
+                             f"utils/{self.problem_template}.yaml")
         return yaml.load(f, Loader=yaml.SafeLoader)
 
     def to_yaml(self):
@@ -50,6 +51,14 @@ class BaseConvLayerDescription(LayerDescription):
         config['problem']['instance']['N'] = self.n
         config['problem']['instance']['Wstride'] = self.w_stride
         config['problem']['instance']['Hstride'] = self.h_stride
+
+        for dspace in config['problem']['shape']['data-spaces']:
+            if dspace['name'] == 'Inputs':
+                dspace['name'] = self.ifmap_name
+            if dspace['name'] == 'Weights':
+                dspace['name'] = self.filter_name
+            if dspace['name'] == 'Outputs':
+                dspace['name'] = self.ofmap_name
         return config
 
 
@@ -69,6 +78,9 @@ class ConvLayerDescription(BaseConvLayerDescription):
     w_stride: int
     h_stride: int
     n: int
+    ifmap_name: str
+    filter_name: str
+    ofmap_name: str
 
     def to_yaml(self):
         config = super().to_yaml()
@@ -92,6 +104,9 @@ class GroupedConvLayerDescription(BaseConvLayerDescription):
     w_stride: int
     h_stride: int
     n: int
+    ifmap_name: str
+    filter_name: str
+    ofmap_name: str
 
     def to_yaml(self):
         config = super().to_yaml()
@@ -113,6 +128,9 @@ class DepthWiseConvLayerDescription(BaseConvLayerDescription):
     w_stride: int
     h_stride: int
     n: int
+    ifmap_name: str
+    filter_name: str
+    ofmap_name: str
 
 
 @dataclass

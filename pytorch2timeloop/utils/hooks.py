@@ -21,9 +21,12 @@ ones that are already here.
 
 import logging
 from typing import Optional, Callable, Any
+import operator
 
+import torch
 import torch.nn as nn
 import transformers.models.distilbert.modeling_distilbert
+from torch.fx import symbolic_trace
 
 from pytorch2timeloop.utils.layer_descriptions import (
     DepthWiseConvLayerDescription,
@@ -43,7 +46,8 @@ def _null_hook(summary, batch_size):
     return hook
 
 
-def _conv_hook(summary, batch_size, name: str=None):
+def _conv_hook(summary, batch_size,
+               name: str=None, ifmap_name: str=None):
     """
     A hook for convolutional (including depth-wise convolutional) layers, based on nn.Conv2d.
 
@@ -68,7 +72,10 @@ def _conv_hook(summary, batch_size, name: str=None):
                 w_pad=module.padding[0],
                 h_pad=module.padding[1],
                 n=batch_size,
-                name=name
+                name=name,
+                ifmap_name=ifmap_name,
+                filter_name=f'{name}.filter',
+                ofmap_name=f'{name}.out'
             )
         else:
             description = ConvLayerDescription(
@@ -83,14 +90,17 @@ def _conv_hook(summary, batch_size, name: str=None):
                 w_pad=module.padding[0],
                 h_pad=module.padding[1],
                 n=batch_size,
-                name=name
+                name=name,
+                ifmap_name=ifmap_name,
+                filter_name=f'{name}.filter',
+                ofmap_name=f'{name}.out'
             )
         summary.append(description)
 
     return hook
 
 
-def _linear_hook(summary, batch_size, name: str=None):
+def _linear_hook(summary, batch_size, name: str=None, ifmap_name: str=None):
     """
     A hook for linear (i.e., fully connected) layers, based on nn.Linear.
 
@@ -115,14 +125,18 @@ def _linear_hook(summary, batch_size, name: str=None):
             w_pad=0,
             h_pad=0,
             n=batch_size,
-            name=name
+            name=name,
+            ifmap_name=ifmap_name,
+            filter_name=f'{name}.filter',
+            ofmap_name=f'{name}.out'
         )
         summary.append(description)
 
     return hook
 
 
-def _layer_norm_hook(summary, batch_size, name: str=None):
+def _layer_norm_hook(summary, batch_size,
+                     name: str=None, ifmap_name: str=None):
     """
     A hook for layer norm layers, based on nn.LayerNorm.
 
@@ -155,7 +169,8 @@ def _layer_norm_hook(summary, batch_size, name: str=None):
     return hook
 
 
-def _multihead_self_attention(summary, batch_size, name: str=None):
+def _multihead_self_attention(summary, batch_size,
+                              name: str=None, ifmap_name: str=None):
     """
     A hook for multi-head self-attention layers.
 
@@ -195,18 +210,19 @@ def _multihead_self_attention(summary, batch_size, name: str=None):
 
 
 """
-Layer types that should be considered "null ops" (i.e., that should not produce a layer file).
-This can be safely extended to reduce the amount of noise printed to the terminal when generating layer files.
+Layer types that should be considered "null ops" (i.e., that should not
+produce a layer file).
+
+This can be safely extended to reduce the amount of noise printed to the
+terminal when generating layer files.
 """
 null_ops = (
     nn.Dropout,
     nn.Embedding,
-    nn.ReLU,
     nn.MaxPool2d,
     nn.AdaptiveAvgPool2d,
     nn.Sequential,
     nn.ModuleList,
-    nn.Tanh,
     transformers.models.bert.modeling_bert.BertSelfOutput,
     transformers.models.bert.modeling_bert.BertEmbeddings,
     transformers.models.bert.modeling_bert.BertIntermediate,
@@ -220,25 +236,31 @@ null_ops = (
 )
 
 
-def hook_for(module: nn.Module, summary: list, batch_size: int, convert_fc=False, name: str=None) -> Optional[Callable[[nn.Module, Any, Any], None]]:
+def hook_for(module: nn.Module, summary: list, batch_size: int,
+             convert_fc=False, name: str=None, module_args: tuple=None) \
+             -> Optional[Callable[[nn.Module, Any, Any], None]]:
     """
     Return the hook, if any, for the given layer type.
 
-    The hook will append a `LayerDescription` to the given summary list when the model containing `module` is executed.
+    The hook will append a `LayerDescription` to the given summary list
+    when the model containing `module` is executed.
 
     :param module: a nn.Module to generate a hook for
     :param summary: the summary list we are adding to
     :param batch_size: the input batch size
-    :param convert_fc: whether to convert the layer if it is fully connected
-    :return: a hook function that can be used with `register_forward_hook()`, or `None` if it does not exist
+    :param convert_fc: whether to convert the layer if it is fully
+        connected
+    :return: a hook function that can be used with `register_forward_hook()`,
+        or `None` if it does not exist
     """
-
     if isinstance(module, nn.Linear) and convert_fc:
         return _linear_hook(summary, batch_size, name)
     elif isinstance(module, nn.Conv2d):
-        return _conv_hook(summary, batch_size, name)
+        return _conv_hook(summary,
+                          batch_size,
+                          name,
+                          f'{module_args[0].name}.out')
     elif isinstance(module, null_ops):
-        # Dropout is not used during inference
         return _null_hook(summary, batch_size)
     elif isinstance(module, nn.LayerNorm):
         if module.elementwise_affine:
