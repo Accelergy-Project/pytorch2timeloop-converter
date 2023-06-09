@@ -77,7 +77,6 @@ class ConvLayerDescription(BaseConvLayerDescription):
     h_pad: int
     w_stride: int
     h_stride: int
-    n: int
     ifmap_name: str
     filter_name: str
     ofmap_name: str
@@ -103,7 +102,6 @@ class GroupedConvLayerDescription(BaseConvLayerDescription):
     h_pad: int
     w_stride: int
     h_stride: int
-    n: int
     ifmap_name: str
     filter_name: str
     ofmap_name: str
@@ -127,10 +125,53 @@ class DepthWiseConvLayerDescription(BaseConvLayerDescription):
     h_pad: int
     w_stride: int
     h_stride: int
-    n: int
     ifmap_name: str
     filter_name: str
     ofmap_name: str
+
+
+@dataclass
+class MaxPoolLayerDescription(LayerDescription):
+    @property
+    def q(self):
+        return int((self.w - self.s + 2 * self.w_pad) / self.w_stride) + 1
+
+    @property
+    def p(self):
+        return int((self.h - self.r + 2 * self.h_pad) / self.h_stride) + 1
+
+    problem_template = 'pool'
+
+    w: int
+    h: int
+    c: int
+    n: int
+    s: int
+    r: int
+    w_pad: int
+    h_pad: int
+    w_stride: int
+    h_stride: int
+    ifmap_name: str
+    ofmap_name: str
+
+    def to_yaml(self):
+        config = super().to_yaml()
+        config['problem']['instance']['R'] = self.r
+        config['problem']['instance']['S'] = self.s
+        config['problem']['instance']['P'] = self.p
+        config['problem']['instance']['Q'] = self.q
+        config['problem']['instance']['C'] = self.c
+        config['problem']['instance']['N'] = self.n
+        config['problem']['instance']['Wstride'] = self.w_stride
+        config['problem']['instance']['Hstride'] = self.h_stride
+
+        for dspace in config['problem']['shape']['data-spaces']:
+            if dspace['name'] == 'Inputs':
+                dspace['name'] = self.ifmap_name
+            if dspace['name'] == 'Outputs':
+                dspace['name'] = self.ofmap_name
+        return config
 
 
 @dataclass
