@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 def extract_layer_data(model: nn.Module,
                        input_size: tuple, batch_size: int,
-                       convert_fc=True,
                        exception_module_names=[]):
     """
     Convert a general PyTorch model to Timeloop problem representations.
@@ -32,15 +31,51 @@ def extract_layer_data(model: nn.Module,
     """
 
     sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
-    return _extract_layer_data(model,
-                               sample_input,
-                               convert_fc=convert_fc,
-                               batch_size=batch_size,
-                               exception_module_names=exception_module_names)
+    return _new_extract_layer_data(
+        model,
+        sample_input,
+        batch_size=batch_size,
+        exception_module_names=exception_module_names
+    )
+
+
+def convert_model_with_sample_input_v2(model: nn.Module,
+                                       sample_input: Any, batch_size: int,
+                                       model_name: str,
+                                       save_dir: str,
+                                       exception_module_names=[]):
+    """
+    Convert a general PyTorch model to Timeloop problem files.
+
+    Currently, only common CNNs and the BERT transformer from
+    `transformers` are supported, but it is easy to add support for new
+    DNNs. See documentation in `utils/hooks.py` for more on supporting
+    new PyTorch module types. This interface is more general than
+    `convert_model()` and should be preferred for new code.
+
+    :param model: the PyTorch CNN model
+    :param sample_input:
+    :param batch_size: the batch size
+    :param model_name: the name of the model, which will become the name
+        of the subdirectory of `save_dir` with the problem files
+    :param save_dir: the directory to save the output in
+    :param exception_module_names: a list of fragments of module names
+        to ignore (can be a prefix, suffix, or infix).
+    """
+    logger.info("converting {} in {} model ...".format("all", model_name))
+
+    layer_data = _new_extract_layer_data(
+        model,
+        sample_input,
+        batch_size=batch_size,
+        exception_module_names=exception_module_names
+    )
+    _convert_from_layer_data(layer_data, model_name, save_dir)
 
 
 def convert_model_with_sample_input(model: nn.Module,
-                                    sample_input: Any, batch_size: int,
+                                    sample_input: Any,
+                                    batch_size: int,
                                     model_name: str,
                                     save_dir: str,
                                     exception_module_names=[]):
@@ -91,14 +126,12 @@ def convert_model(model: nn.Module, input_size: tuple, batch_size: int,
     :param exception_module_names: a list of fragments of module names
         to ignore (can be a prefix, suffix, or infix).
     """
-
     logger.info(
         "converting {} in {} model ...".format(
             "nn.Conv2d" if not convert_fc else "nn.Conv2d and nn.Linear",
             model_name
         )
     )
-
     sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
     layer_data = _extract_layer_data(model, sample_input, convert_fc=convert_fc,
                                      exception_module_names=exception_module_names,
@@ -163,3 +196,12 @@ def _convert_from_layer_data(layer_data, model_name, save_dir):
             f.write(yaml.dump(problem.to_yaml()))
 
     logger.info("conversion complete!\n")
+
+def _new_make_summary(model, sample_input, batch_size):
+    # TODO: rewrite with FX interpreter
+    raise NotImplementedError()
+
+def _new_extract_layer_data(model, sample_inputs,
+                            exception_module_names=[], batch_size=1):
+    summary = _new_make_summary(model, sample_inputs, batch_size=batch_size)
+    return summary
