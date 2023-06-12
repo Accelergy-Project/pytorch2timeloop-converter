@@ -1,0 +1,20 @@
+problem:
+  shape:
+    name: "add"
+    dimensions: []
+    data-spaces:
+      - name: Inputs
+      - name: Outputs
+        read-write: True
+  instance:
+    C: 16
+    M: 32
+    N: 1
+    P: 10
+    Q: 10
+    R: 5
+    S: 5
+    Wdilation: 1
+    Wstride: 1
+    Hdilation: 1
+    Hstride: 1

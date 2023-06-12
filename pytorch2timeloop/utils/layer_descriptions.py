@@ -7,9 +7,9 @@ define helper properties (like p and q for convolutional layers).
 A layer description may use any YAML template (the name of the file that will be used is given by the `problem_template`
 attribute). Furthermore, any number of descriptions may use the same template but map the parameters differently.
 """
-
+import string
+from typing import Optional, Sequence
 import pkgutil
-from typing import Optional
 
 import yaml
 from dataclasses import dataclass
@@ -195,4 +195,37 @@ class MatrixMatrixMultiplyLayerDescription(LayerDescription):
         config['problem']['instance']['Wstride'] = 1
         config['problem']['instance']['Hstride'] = 1
         config['problem']['shape']['name'] = self.name
+        return config
+
+
+@dataclass
+class AddFuncDescription(LayerDescription):
+    problem_template='add'
+    ifmap_shape: Sequence
+    ofmap_shape: Sequence
+    ifmap_name: str
+    ofmap_name: str
+
+    def to_yaml(self):
+        assert(self.ifmap_shape == self.ofmap_shape)
+        config = super().to_yaml()
+
+        dims = list(string.ascii_uppercase[:len(self.ifmap_shape)])
+
+        for dspace in config['problem']['shape']['data-spaces']:
+            if dspace['name'] == 'Inputs':
+                dspace['name'] = self.ifmap_name
+            if dspace['name'] == 'Outputs':
+                dspace['name'] = self.ofmap_name
+            dspace['projection'] = list(map(
+                lambda d: [[d]],
+                dims
+            ))
+        
+        config['problem']['shape']['dimensions'] = dims
+
+        config['problem']['instance'] = {}
+        for dim, size in zip(dims, self.ifmap_shape):
+            config['problem']['instance'][dim] = size
+
         return config

@@ -33,7 +33,8 @@ from pytorch2timeloop.utils.layer_descriptions import (
     DepthWiseConvLayerDescription,
     ConvLayerDescription,
     MaxPoolLayerDescription,
-    MatrixMatrixMultiplyLayerDescription
+    MatrixMatrixMultiplyLayerDescription,
+    AddFuncDescription
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ def generate_description(module,
                          name: str,
                          ifmap_name: str):
     raise NotImplementedError(f'not implemented for {type(module)}')
+
 
 @generate_description.register(nn.Conv2d)
 def _(module, input, output, name, ifmap_name):
@@ -143,102 +145,12 @@ def _(module, input, output, name, ifmap_name):
     return description
 
 
-def _layer_norm_hook(summary, batch_size,
-                     name: str=None, ifmap_name: str=None):
-    """
-    A hook for layer norm layers, based on nn.LayerNorm.
-
-    :param summary: the summary list we are adding to
-    :param batch_size: the input batch size
-    :return: a PyTorch module forward hook to collect a `LayerDescription` about this layer norm layer.
-    """
-    if name is None:
-        name = 'layer_norm'
-    def hook(module, input, output):
-        if module.elementwise_affine:
-            input_shape = input[0].size()
-            assert input_shape[1] >= 0
-            description = ConvLayerDescription(
-                w=input_shape[2],
-                h=1,
-                c=1,
-                m=1,
-                s=input_shape[2],
-                r=1,
-                w_stride=1,
-                h_stride=1,
-                w_pad=0,
-                h_pad=0,
-                n=batch_size * input_shape[1],
-                name=name
-            )
-        summary.append(description)
-
-    return hook
-
-
-def _multihead_self_attention(summary, batch_size,
-                              name: str=None, ifmap_name: str=None):
-    """
-    A hook for multi-head self-attention layers.
-
-    Currently, this is designed only to extract data from the self-attention layer defined in
-    `transformers.models.bert.modeling_bert.BertSelfAttention`. It should be quite simple to adapt to other
-    transformers with similar self-attention mechanisms, though.
-
-    :param summary: the summary list we are adding to
-    :param batch_size: the input batch size
-    :return: a PyTorch module forward hook to collect a `LayerDescription` about this multi-head self-attention layer
-    """
-    if name is None:
-        name = 'attention'
-    def hook(module, input, output):
-        assert input != ()
-        x = input[0]
-        head_size = module.attention_head_size
-        sequence_length = x.shape[1]
-        scores = MatrixMatrixMultiplyLayerDescription(
-            m=sequence_length,
-            k=head_size,
-            n=sequence_length,
-            batch_size=batch_size * module.num_attention_heads,
-            name=f'{name}_scores'
-        )
-        context = MatrixMatrixMultiplyLayerDescription(
-            m=sequence_length,
-            k=sequence_length,
-            n=head_size,
-            batch_size=batch_size * module.num_attention_heads,
-            name=f'{name}_context'
-        )
-        summary.append(scores)
-        summary.append(context)
-
-    return hook
-
-
-"""
-Layer types that should be considered "null ops" (i.e., that should not
-produce a layer file).
-
-This can be safely extended to reduce the amount of noise printed to the
-terminal when generating layer files.
-"""
-null_ops = (
-    nn.Dropout,
-    nn.Embedding,
-    nn.MaxPool2d,
-    nn.AdaptiveAvgPool2d,
-    nn.Sequential,
-    nn.ModuleList,
-    transformers.models.bert.modeling_bert.BertSelfOutput,
-    transformers.models.bert.modeling_bert.BertEmbeddings,
-    transformers.models.bert.modeling_bert.BertIntermediate,
-    transformers.models.bert.modeling_bert.BertOutput,
-    transformers.models.bert.modeling_bert.BertAttention,
-    transformers.models.bert.modeling_bert.BertLayer,
-    transformers.models.bert.modeling_bert.BertEncoder,
-    transformers.models.bert.modeling_bert.BertPooler,
-    transformers.models.bert.modeling_bert.BertModel,
-    transformers.models.bert.modeling_bert.BertForSequenceClassification,
-)
+def generate_func_description(func, input, output, name, ifmap_name):
+    description = AddFuncDescription(
+        ifmap_shape=input.shape,
+        ofmap_shape=output.shape,
+        name=name,
+        ifmap_name=ifmap_name,
+        ofmap_name=f'{name}.out'
+    )
+    return description
