@@ -34,7 +34,7 @@ from pytorch2timeloop.utils.layer_descriptions import (
     ConvLayerDescription,
     MaxPoolLayerDescription,
     MatrixMatrixMultiplyLayerDescription,
-    AddFuncDescription
+    MatmulFuncDescription
 )
 
 logger = logging.getLogger(__name__)
@@ -145,12 +145,32 @@ def _(module, input, output, name, ifmap_name):
     return description
 
 
-def generate_func_description(func, input, output, name, ifmap_name):
-    description = AddFuncDescription(
-        ifmap_shape=input.shape,
-        ofmap_shape=output.shape,
-        name=name,
-        ifmap_name=ifmap_name,
-        ofmap_name=f'{name}.out'
-    )
+def generate_matmul_func(input1, input2, output,
+                         name, input1_name, input2_name):
+    if len(input1.shape) == 2 and len(input2.shape) == 2:
+        description = MatmulFuncDescription(
+            name = name,
+            m = input1.shape[0],
+            n = input2.shape[1],
+            k = input1.shape[1],
+            ifmap1_name = input1_name,
+            ifmap2_name = input2_name,
+            ofmap_name = f'{name}.out'
+        )
+    elif len(input1.shape) > 2 and input1.shape[:-2] == input2.shape[:-2]:
+        description = MatmulFuncDescription(
+            name = name,
+            m = input1.shape[0],
+            n = input2.shape[1],
+            k = input1.shape[1],
+            ifmap1_name = input1_name,
+            ifmap2_name = input2_name,
+            ofmap_name = f'{name}.out',
+            extra_dims = input1.shape[:-2]
+        )
+    else:
+        raise NotImplementedError(
+            f'unimplemented for arg shapes {input1.shape}, {input2.shape}'
+        )
+
     return description

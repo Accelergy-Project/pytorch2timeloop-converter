@@ -199,33 +199,77 @@ class MatrixMatrixMultiplyLayerDescription(LayerDescription):
 
 
 @dataclass
-class AddFuncDescription(LayerDescription):
-    problem_template='add'
-    ifmap_shape: Sequence
+class BinaryElementwiseFuncDescription(LayerDescription):
+    problem_template='binary_elementwise'
+    ifmap1_shape: Sequence
+    ifmap2_shape: Sequence
     ofmap_shape: Sequence
-    ifmap_name: str
+    ifmap1_name: str
+    ifmap2_name: str
     ofmap_name: str
 
     def to_yaml(self):
-        assert(self.ifmap_shape == self.ofmap_shape)
+        assert(self.ifmap1_shape == self.ofmap_shape)
+        assert(self.ifmap2_shape == self.ofmap_shape)
+
         config = super().to_yaml()
 
         dims = list(string.ascii_uppercase[:len(self.ifmap_shape)])
 
         for dspace in config['problem']['shape']['data-spaces']:
-            if dspace['name'] == 'Inputs':
-                dspace['name'] = self.ifmap_name
+            if dspace['name'] == 'Input1':
+                dspace['name'] = self.ifmap1_name
+            if dspace['name'] == 'Input2':
+                dspace['name'] = self.ifmap2_name
             if dspace['name'] == 'Outputs':
                 dspace['name'] = self.ofmap_name
             dspace['projection'] = list(map(
                 lambda d: [[d]],
                 dims
             ))
-        
+
         config['problem']['shape']['dimensions'] = dims
 
         config['problem']['instance'] = {}
         for dim, size in zip(dims, self.ifmap_shape):
+            config['problem']['instance'][dim] = size
+
+        return config
+
+
+@dataclass
+class MatmulFuncDescription(LayerDescription):
+    problem_template = "matmul"
+    m: int
+    n: int
+    k: int
+    ifmap1_name: str
+    ifmap2_name: str
+    ofmap_name: str
+    extra_dims: tuple = None
+
+    def to_yaml(self):
+        config = super().to_yaml()
+
+        if extra_dims is not None:
+            dims = list(string.ascii_uppercase[:len(self.extra_dims)])
+
+        for dspace in config['problem']['shape']['data-spaces']:
+            if dspace['name'] == 'Input1':
+                dspace['name'] = self.ifmap1_name
+            if dspace['name'] == 'Input2':
+                dspace['name'] = self.ifmap2_name
+            if dspace['name'] == 'Outputs':
+                dspace['name'] = self.ofmap_name
+            proj_dims = list(map(lambda d: [[d]], dims))
+            dspace['projection'] = proj_dims + dspace['projections']
+
+        config['problem']['instance']['K'] = self.k
+        config['problem']['instance']['M'] = self.m
+        config['problem']['instance']['N'] = self.n
+        config['problem']['shape']['name'] = self.name
+
+        for dim, size in zip(dims, extra_dims):
             config['problem']['instance'][dim] = size
 
         return config
