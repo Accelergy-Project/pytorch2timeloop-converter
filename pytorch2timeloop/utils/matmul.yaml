@@ -1,0 +1,21 @@
+problem:
+  shape:
+    dimensions: [ M, N, K ]
+    data-spaces:
+      - name: Input1
+        projection:
+          - [ [M] ]
+          - [ [K] ]
+      - name: Input2
+        projection:
+          - [ [K] ]
+          - [ [N] ]
+      - name: Outputs
+        projection:
+          - [ [M] ]
+          - [ [N] ]
+        read-write: True
+  instance:
+    M: 1
+    N: 1
+    K: 1
