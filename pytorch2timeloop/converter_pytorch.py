@@ -85,7 +85,7 @@ def _convert_from_layer_data(layer_data, model_name, save_dir):
     # make the problem file for each layer
     for i in range(0, len(layer_data)):
         problem = layer_data[i]
-        file_name = model_name + '_' + 'layer' + str(i+1) + '.yaml'
+        file_name = '[layer' + str(i+1) + ']' + problem.name + '.yaml'
         file_path = os.path.abspath(os.path.join(save_dir, model_name, file_name))
         with open(file_path, 'w') as f:
             f.write(yaml.dump(problem.to_yaml()))

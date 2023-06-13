@@ -155,7 +155,8 @@ def generate_matmul_func(input1, input2, output,
             k = input1.shape[1],
             ifmap1_name = input1_name,
             ifmap2_name = input2_name,
-            ofmap_name = f'{name}.out'
+            ofmap_name = f'{name}.out',
+            extra_dims = tuple()
         )
     elif len(input1.shape) > 2 and input1.shape[:-2] == input2.shape[:-2]:
         description = MatmulFuncDescription(
