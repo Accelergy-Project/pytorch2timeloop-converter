@@ -55,9 +55,9 @@ class BaseConvLayerDescription(LayerDescription):
         for dspace in config['problem']['shape']['data-spaces']:
             if dspace['name'] == 'Inputs':
                 dspace['name'] = self.ifmap_name
-            if dspace['name'] == 'Weights':
+            elif dspace['name'] == 'Weights':
                 dspace['name'] = self.filter_name
-            if dspace['name'] == 'Outputs':
+            elif dspace['name'] == 'Outputs':
                 dspace['name'] = self.ofmap_name
         return config
 
@@ -169,7 +169,7 @@ class MaxPoolLayerDescription(LayerDescription):
         for dspace in config['problem']['shape']['data-spaces']:
             if dspace['name'] == 'Inputs':
                 dspace['name'] = self.ifmap_name
-            if dspace['name'] == 'Outputs':
+            elif dspace['name'] == 'Outputs':
                 dspace['name'] = self.ofmap_name
         return config
 
@@ -209,29 +209,47 @@ class BinaryElementwiseFuncDescription(LayerDescription):
     ofmap_name: str
 
     def to_yaml(self):
-        assert(self.ifmap1_shape == self.ofmap_shape)
-        assert(self.ifmap2_shape == self.ofmap_shape)
+        if len(self.ifmap1_shape) < len(self.ofmap_shape):
+            n_missing_dims = len(self.ofmap_shape) - len(self.ifmap1_shape)
+            self.ifmap1_shape = tuple(
+                [1]*n_missing_dims + list(self.ifmap1_shape)
+            )
+        if len(self.ifmap2_shape) < len(self.ofmap_shape):
+            n_missing_dims = len(self.ofmap_shape) - len(self.ifmap2_shape)
+            self.ifmap2_shape = tuple(
+                [1]*n_missing_dims + list(self.ifmap2_shape)
+            )
+        assert(len(self.ifmap1_shape) == len(self.ofmap_shape))
+        assert(len(self.ifmap2_shape) == len(self.ofmap_shape))
 
         config = super().to_yaml()
 
-        dims = list(string.ascii_uppercase[:len(self.ifmap_shape)])
+        dims = list(string.ascii_uppercase[:len(self.ofmap_shape)])
 
         for dspace in config['problem']['shape']['data-spaces']:
             if dspace['name'] == 'Input1':
                 dspace['name'] = self.ifmap1_name
-            if dspace['name'] == 'Input2':
+                dspace['projection'] = []
+                for d, size in zip(dims, self.ifmap1_shape):
+                    if size > 1:
+                        dspace['projection'].append([[d]])
+            elif dspace['name'] == 'Input2':
                 dspace['name'] = self.ifmap2_name
-            if dspace['name'] == 'Outputs':
+                dspace['projection'] = []
+                for d, size in zip(dims, self.ifmap2_shape):
+                    if size > 1:
+                        dspace['projection'].append([[d]])
+            elif dspace['name'] == 'Outputs':
                 dspace['name'] = self.ofmap_name
-            dspace['projection'] = list(map(
-                lambda d: [[d]],
-                dims
-            ))
+                dspace['projection'] = list(map(
+                    lambda d: [[d]],
+                    dims
+                ))
 
         config['problem']['shape']['dimensions'] = dims
 
         config['problem']['instance'] = {}
-        for dim, size in zip(dims, self.ifmap_shape):
+        for dim, size in zip(dims, self.ifmap1_shape):
             config['problem']['instance'][dim] = size
 
         return config
@@ -246,30 +264,71 @@ class MatmulFuncDescription(LayerDescription):
     ifmap1_name: str
     ifmap2_name: str
     ofmap_name: str
-    extra_dims: tuple = None
+    extra_dims: Optional[tuple] = None
 
     def to_yaml(self):
         config = super().to_yaml()
 
-        if extra_dims is not None:
-            dims = list(string.ascii_uppercase[:len(self.extra_dims)])
+        if self.extra_dims is not None:
+            dims = tuple(string.ascii_uppercase[:len(self.extra_dims)])
+        else:
+            dims = tuple()
+            self.extra_dims = tuple()
 
         for dspace in config['problem']['shape']['data-spaces']:
             if dspace['name'] == 'Input1':
                 dspace['name'] = self.ifmap1_name
-            if dspace['name'] == 'Input2':
+            elif dspace['name'] == 'Input2':
                 dspace['name'] = self.ifmap2_name
-            if dspace['name'] == 'Outputs':
+            elif dspace['name'] == 'Outputs':
                 dspace['name'] = self.ofmap_name
             proj_dims = list(map(lambda d: [[d]], dims))
-            dspace['projection'] = proj_dims + dspace['projections']
+            dspace['projection'] = proj_dims + dspace['projection']
 
         config['problem']['instance']['K'] = self.k
         config['problem']['instance']['M'] = self.m
         config['problem']['instance']['N'] = self.n
         config['problem']['shape']['name'] = self.name
 
-        for dim, size in zip(dims, extra_dims):
+        for dim, size in zip(dims, self.extra_dims):
             config['problem']['instance'][dim] = size
+
+        return config
+
+
+@dataclass
+class SoftmaxFuncDescription(LayerDescription):
+    problem_template = 'softmax'
+    ifmap_shape: tuple
+    ofmap_shape: tuple
+    ifmap_name: str
+    ofmap_name: str
+    softmax_dim: int
+
+    def to_yaml(self):
+        config = super().to_yaml()
+
+        dims = tuple(string.ascii_uppercase[:len(self.ifmap_shape)+1])
+
+        for dspace in config['problem']['shape']['data-spaces']:
+            if dspace['name'] == 'Input':
+                dspace['name'] = self.ifmap_name
+                dspace['projection'] = list(map(
+                    lambda d: [[d]],
+                    dims[:-1]
+                ))
+            elif dspace['name'] == 'Output':
+                dspace['name'] = self.ofmap_name
+                dspace['projection'] = list(map(
+                    lambda d: [[d]],
+                    dims[:-1]
+                ))
+                dspace['projection'][self.softmax_dim] = [[dims[-1]]]
+
+        instance = {}
+        for dim, size in zip(dims[:-1], self.ifmap_shape):
+            instance[dim] = size
+        instance[dims[-1]] = self.ofmap_shape[self.softmax_dim]
+        config['problem']['instance'] = instance
 
         return config

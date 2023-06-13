@@ -5,10 +5,14 @@ from typing import Dict, Tuple, Union
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 import torch.fx as fx
 
 from .converter import generate_description, generate_matmul_func
-from pytorch2timeloop.utils.layer_descriptions import BinaryElementwiseFuncDescription
+from pytorch2timeloop.utils.layer_descriptions import (
+    BinaryElementwiseFuncDescription,
+    SoftmaxFuncDescription
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,9 @@ class Converter(fx.Interpreter):
     ]
 
     UNARY_ELEMENTWISE_FUNC = [
-        math.sqrt
+        math.sqrt,
+        F.relu,
+        F.relu6
     ]
 
     BINARY_ELEMENTWISE_FUNC = [
@@ -43,8 +49,18 @@ class Converter(fx.Interpreter):
         torch.div
     ]
 
+    DEFAULT_IGNORED_FUNC = [
+        torch.flatten
+    ]
+
+    SOFTMAX = [
+        torch.softmax,
+        F.softmax
+    ]
+
     def __init__(self, module, garbage_collect_values=True,
-                    bypassed_modules=None, ignored_modules=None):
+                 bypassed_modules=None, ignored_modules=None,
+                 ignored_func=None):
         super().__init__(module, garbage_collect_values)
         self.name_to_module = dict(module.named_modules())
         self.tensor_sizes = {}
@@ -57,6 +73,10 @@ class Converter(fx.Interpreter):
         if ignored_modules is None:
             ignored_modules = Converter.DEFAULT_IGNORED_MODULES
         self.ignored_modules = ignored_modules
+
+        if ignored_func is None:
+            ignored_func = Converter.DEFAULT_IGNORED_FUNC
+        self.ignored_func = ignored_func
 
         self.bypassed_arg_remap = {}
 
@@ -84,12 +104,12 @@ class Converter(fx.Interpreter):
                 f'{original_args[0].name}.out'
             return result
 
-        arg_name = original_args[0].name
+        arg_name = f'{original_args[0].name}.out'
         while arg_name in self.bypassed_arg_remap:
             arg_name = self.bypassed_arg_remap[arg_name]
 
         description = generate_description(module, args[0], result, name,
-                                           original_args[0].name)
+                                           arg_name)
 
         self.summary.append(description)
 
@@ -99,32 +119,57 @@ class Converter(fx.Interpreter):
                       original_args: tuple):
         result = super().call_function(target, args, kwargs)
 
+        arg_names = []
+        for arg in original_args:
+            try:
+                arg_names.append(f'{arg.name}.out')
+            except:
+                arg_names.append(None)
+
+        for i, n in enumerate(arg_names):
+            if n is not None:
+                while n in self.bypassed_arg_remap:
+                    n = self.bypassed_arg_remap[n]
+                arg_names[i] = n
+
         if target in Converter.BINARY_ELEMENTWISE_FUNC:
             if isinstance(args[1], torch.Tensor):
                 description = BinaryElementwiseFuncDescription(
                     ifmap1_shape = args[0].shape,
                     ifmap2_shape = args[1].shape,
                     ofmap_shape = result.shape,
-                    ifmap1_name = f'{original_args[0].name}.out',
-                    ifmap2_name = f'{original_args[1].name}.out',
+                    ifmap1_name = arg_names[0],
+                    ifmap2_name = arg_names[1],
                     ofmap_name = f'{name}.out',
                     name = name
                 )
                 self.summary.append(description)
-            logger.warning('assuming op by scalar %s[type=%s] args=%s',
-                           name, target, args)
         elif target == torch.matmul:
             description = generate_matmul_func(
-                input1=args[0],
-                input2=args[1],
-                output=result,
-                name=name,
-                input1_name=f'{original_args[0].name}.out',
-                input2_name=f'{original_args[1].name}.out'
+                input1 = args[0],
+                input2 = args[1],
+                output = result,
+                name = name,
+                input1_name = arg_names[0],
+                input2_name = arg_names[1]
             )
-        elif target == nn.softmax:
-            raise NotImplementedError('softmax unimplemented')
+            self.summary.append(description)
+        elif target in Converter.SOFTMAX:
+            description = SoftmaxFuncDescription(
+                ifmap_shape = args[0].shape,
+                ofmap_shape = result.shape,
+                ifmap_name = arg_names[0],
+                ofmap_name = f'{name}.out',
+                name = name,
+                softmax_dim = kwargs['dim']
+            )
+            self.summary.append(description)
         elif target in Converter.UNARY_ELEMENTWISE_FUNC:
+            self.bypassed_arg_remap[f'{name}.out'] = \
+                f'{original_args[0].name}.out'
+            pass
+        elif target in self.ignored_func:
+            logger.warning('ignoring func %s[type=%s]', name, target)
             pass
         else:
             logger.error('unknwown function  %s[type=%s]', name, target)
