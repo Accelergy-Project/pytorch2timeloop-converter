@@ -1,5 +1,6 @@
 import unittest
 
+import torch
 from torchvision.models import resnet18
 import pytorch2timeloop
 
@@ -19,5 +20,18 @@ class TestResnet(unittest.TestCase):
             convert_fc=False,
             model_name='resnet18',
             save_dir=TMP_TEST_DIR,
+            ignored_func=[torch.flatten],
+            exception_module_names=[]
+        )
+
+    def test_resnet18_fused(self):
+        pytorch2timeloop.convert_model(
+            model=self.net,
+            input_size=self.input_size,
+            batch_size=self.batch_size,
+            convert_fc=False,
+            model_name='resnet18',
+            save_dir=TMP_TEST_DIR,
+            fuse=True,
             exception_module_names=[]
         )

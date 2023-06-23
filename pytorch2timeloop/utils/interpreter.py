@@ -11,7 +11,9 @@ import torch.fx as fx
 from .converter import generate_description, generate_matmul_func
 from pytorch2timeloop.utils.layer_descriptions import (
     BinaryElementwiseFuncDescription,
-    SoftmaxFuncDescription
+    SoftmaxFuncDescription,
+    MaxPoolLayerDescription,
+    ViewFuncDescription
 )
 
 logger = logging.getLogger(__name__)
@@ -28,9 +30,7 @@ class Converter(fx.Interpreter):
         nn.ReLU6
     ]
 
-    DEFAULT_IGNORED_MODULES = Union[
-        nn.AdaptiveAvgPool2d
-    ]
+    DEFAULT_IGNORED_MODULES = tuple()
 
     UNARY_ELEMENTWISE_FUNC = [
         math.sqrt,
@@ -49,9 +49,7 @@ class Converter(fx.Interpreter):
         torch.div
     ]
 
-    DEFAULT_IGNORED_FUNC = [
-        torch.flatten
-    ]
+    DEFAULT_IGNORED_FUNC = []
 
     SOFTMAX = [
         torch.softmax,
@@ -100,11 +98,11 @@ class Converter(fx.Interpreter):
             return result
 
         if isinstance(module, self.bypassed_modules):
-            self.bypassed_arg_remap[f'{name}.out'] = \
-                f'{original_args[0].name}.out'
+            self.bypassed_arg_remap[f'{name}_out'] = \
+                f'{original_args[0].name}_out'
             return result
 
-        arg_name = f'{original_args[0].name}.out'
+        arg_name = f'{original_args[0].name}_out'
         while arg_name in self.bypassed_arg_remap:
             arg_name = self.bypassed_arg_remap[arg_name]
 
@@ -122,7 +120,7 @@ class Converter(fx.Interpreter):
         arg_names = []
         for arg in original_args:
             try:
-                arg_names.append(f'{arg.name}.out')
+                arg_names.append(f'{arg.name}_out')
             except:
                 arg_names.append(None)
 
@@ -132,7 +130,10 @@ class Converter(fx.Interpreter):
                     n = self.bypassed_arg_remap[n]
                 arg_names[i] = n
 
-        if target in Converter.BINARY_ELEMENTWISE_FUNC:
+        if target in self.ignored_func:
+            logger.warning('ignoring func %s[type=%s]', name, target)
+            pass
+        elif target in Converter.BINARY_ELEMENTWISE_FUNC:
             if isinstance(args[1], torch.Tensor):
                 description = BinaryElementwiseFuncDescription(
                     ifmap1_shape = args[0].shape,
@@ -140,10 +141,32 @@ class Converter(fx.Interpreter):
                     ofmap_shape = result.shape,
                     ifmap1_name = arg_names[0],
                     ifmap2_name = arg_names[1],
-                    ofmap_name = f'{name}.out',
+                    ofmap_name = f'{name}_out',
                     name = name
                 )
                 self.summary.append(description)
+        elif target == F.adaptive_avg_pool2d:
+            stride_w = args[0].shape[-1] // result.shape[-1]
+            stride_h = args[0].shape[-2] // result.shape[-2]
+            kernel_w = args[0].shape[-1] - (result.shape[-1]-1)*stride_w
+            kernel_h = args[0].shape[-2] - (result.shape[-2]-1)*stride_h
+
+            description = MaxPoolLayerDescription(
+                w=args[0].shape[3],
+                h=args[0].shape[2],
+                c=args[0].shape[1],
+                s=kernel_w,
+                r=kernel_h,
+                w_stride=stride_w,
+                h_stride=stride_h,
+                w_pad=0,
+                h_pad=0,
+                n=args[0].shape[0],
+                name=name,
+                ifmap_name=arg_names[0],
+                ofmap_name=f'{name}_out'
+            )
+            self.summary.append(description)
         elif target == torch.matmul:
             description = generate_matmul_func(
                 input1 = args[0],
@@ -159,17 +182,23 @@ class Converter(fx.Interpreter):
                 ifmap_shape = args[0].shape,
                 ofmap_shape = result.shape,
                 ifmap_name = arg_names[0],
-                ofmap_name = f'{name}.out',
+                ofmap_name = f'{name}_out',
                 name = name,
                 softmax_dim = kwargs['dim']
+            )
+            self.summary.append(description)
+        elif target == torch.flatten:
+            description = ViewFuncDescription(
+                name=name,
+                ifmap_shape=args[0].shape,
+                ofmap_shape=result.shape,
+                ifmap_name=arg_names[0],
+                ofmap_name=f'{name}_out'
             )
             self.summary.append(description)
         elif target in Converter.UNARY_ELEMENTWISE_FUNC:
             self.bypassed_arg_remap[f'{name}.out'] = \
                 f'{original_args[0].name}.out'
-            pass
-        elif target in self.ignored_func:
-            logger.warning('ignoring func %s[type=%s]', name, target)
             pass
         else:
             logger.error('unknwown function  %s[type=%s]', name, target)
