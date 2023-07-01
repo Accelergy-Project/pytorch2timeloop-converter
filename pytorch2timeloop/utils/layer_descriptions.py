@@ -30,7 +30,7 @@ class LayerDescription:
         config['problem']['shape']['name'] = self.name
         return config
 
-
+      
 @dataclass
 class ConvLayerDescription(LayerDescription):
     g: int
@@ -267,7 +267,6 @@ class MaxPoolLayerDescription(LayerDescription):
                 f'0 <= {dim_S} < {self.s}'
             )
         }
-
         return config
 
 

@@ -109,7 +109,6 @@ def _convert_from_layer_data(layer_data, model_name, save_dir, fuse=False):
 
     logger.info("conversion complete!\n")
 
-
 def _make_summary(model, sample_input, ignored_func):
     converter = Converter(fx.symbolic_trace(model), ignored_func=ignored_func)
     converter.run(sample_input)
