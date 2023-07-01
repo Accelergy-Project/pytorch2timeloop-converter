@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -19,7 +20,7 @@ def convert_model_with_sample_input(model: nn.Module,
                                     sample_input: Any,
                                     batch_size: int,
                                     model_name: str,
-                                    save_dir: str,
+                                    save_dir: Path,
                                     exception_module_names=[]):
     """
     Convert a general PyTorch model to Timeloop problem files.
@@ -46,8 +47,10 @@ def convert_model_with_sample_input(model: nn.Module,
 
 
 def convert_model(model: nn.Module, input_size: tuple, batch_size: int,
-                  model_name: str, save_dir: str,
-                  convert_fc=False, exception_module_names=[]):
+                  model_name: str, save_dir: Path,
+                  fuse=False, convert_fc=False,
+                  ignored_func=None,
+                  exception_module_names=[]):
     """
     Convert a PyTorch CNN model to Timeloop problem files.
 
@@ -73,26 +76,40 @@ def convert_model(model: nn.Module, input_size: tuple, batch_size: int,
         )
     )
     sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
-    layer_data = _make_summary(model, sample_input)
-    _convert_from_layer_data(layer_data, model_name, save_dir)
+    layer_data = _make_summary(model, sample_input, ignored_func=ignored_func)
+    _convert_from_layer_data(layer_data, model_name, save_dir, fuse=fuse)
 
 
-def _convert_from_layer_data(layer_data, model_name, save_dir):
+def _convert_from_layer_data(layer_data, model_name, save_dir, fuse=False):
     outdir = os.path.join(save_dir, model_name)
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    # make the problem file for each layer
-    for i in range(0, len(layer_data)):
-        problem = layer_data[i]
-        file_name = '[layer' + str(i+1) + ']' + problem.name + '.yaml'
+    if fuse:
+        problems = []
+        for i in range(0, len(layer_data)):
+            problem = layer_data[i]
+            problems.append(problem.to_fused_yaml())
+        file_name = model_name + '.yaml'
         file_path = os.path.abspath(os.path.join(save_dir, model_name, file_name))
         with open(file_path, 'w') as f:
-            f.write(yaml.dump(problem.to_yaml()))
+            f.write(yaml.dump(
+                {
+                    'problem': problems
+                }
+            ))
+    else:
+        # make the problem file for each layer
+        for i in range(0, len(layer_data)):
+            problem = layer_data[i]
+            file_name = '[layer' + str(i+1) + ']' + problem.name + '.yaml'
+            file_path = os.path.abspath(os.path.join(save_dir, model_name, file_name))
+            with open(file_path, 'w') as f:
+                f.write(yaml.dump(problem.to_yaml()))
 
     logger.info("conversion complete!\n")
 
-def _make_summary(model, sample_input):
-    converter = Converter(fx.symbolic_trace(model))
+def _make_summary(model, sample_input, ignored_func):
+    converter = Converter(fx.symbolic_trace(model), ignored_func=ignored_func)
     converter.run(sample_input)
     return converter.summary

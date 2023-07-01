@@ -27,10 +27,8 @@ import operator
 import torch
 import torch.nn as nn
 import transformers.models.distilbert.modeling_distilbert
-from torch.fx import symbolic_trace
 
 from pytorch2timeloop.utils.layer_descriptions import (
-    DepthWiseConvLayerDescription,
     ConvLayerDescription,
     MaxPoolLayerDescription,
     MatrixMatrixMultiplyLayerDescription,
@@ -51,41 +49,24 @@ def generate_description(module,
 
 @generate_description.register(nn.Conv2d)
 def _(module, input, output, name, ifmap_name):
-    if module.groups > 1 and module.groups == module.in_channels:
-        description = DepthWiseConvLayerDescription(
-            w=input.shape[3],
-            h=input.shape[2],
-            c=module.in_channels,
-            s=module.kernel_size[1],
-            r=module.kernel_size[0],
-            w_stride=module.stride[1],
-            h_stride=module.stride[0],
-            w_pad=module.padding[1],
-            h_pad=module.padding[0],
-            n=input.shape[0],
-            name=name,
-            ifmap_name=ifmap_name,
-            filter_name=f'{name}.filter',
-            ofmap_name=f'{name}.out'
-        )
-    else:
-        description = ConvLayerDescription(
-            w=input.shape[2],
-            h=input.shape[3],
-            c=module.in_channels,
-            m=module.out_channels,
-            s=module.kernel_size[0],
-            r=module.kernel_size[1],
-            w_stride=module.stride[0],
-            h_stride=module.stride[1],
-            w_pad=module.padding[0],
-            h_pad=module.padding[1],
-            n=input.shape[0],
-            name=name,
-            ifmap_name=ifmap_name,
-            filter_name=f'{name}.filter',
-            ofmap_name=f'{name}.out'
-        )
+    description = ConvLayerDescription(
+        name=name,
+        g=module.groups,
+        m=output.shape[1],
+        w=input.shape[3],
+        h=input.shape[2],
+        c=input.shape[1],
+        n=input.shape[0],
+        s=module.kernel_size[1],
+        r=module.kernel_size[0],
+        w_pad=module.padding[1],
+        h_pad=module.padding[0],
+        w_stride=module.stride[1],
+        h_stride=module.stride[0],
+        ifmap_name=ifmap_name,
+        filter_name=f'{name}_filter',
+        ofmap_name=f'{name}_out'
+    )
     return description
 
 
@@ -117,7 +98,33 @@ def _(module, input, output, name, ifmap_name):
         n=input.shape[0],
         name=name,
         ifmap_name=ifmap_name,
-        ofmap_name=f'{name}.out'
+        ofmap_name=f'{name}_out'
+    )
+
+    return description
+
+
+@generate_description.register(nn.AdaptiveAvgPool2d)
+def _(module, input, output, name, ifmap_name):
+    stride_w = input.shape[-1] // output.shape[-1]
+    stride_h = input.shape[-2] // output.shape[-2]
+    kernel_w = input.shape[-1] - (output.shape[-1]-1)*stride_w
+    kernel_h = input.shape[-2] - (output.shape[-2]-1)*stride_h
+
+    description = MaxPoolLayerDescription(
+        w=input.shape[3],
+        h=input.shape[2],
+        c=input.shape[1],
+        s=kernel_w,
+        r=kernel_h,
+        w_stride=stride_w,
+        h_stride=stride_h,
+        w_pad=0,
+        h_pad=0,
+        n=input.shape[0],
+        name=name,
+        ifmap_name=ifmap_name,
+        ofmap_name=f'{name}_out'
     )
 
     return description
@@ -126,6 +133,7 @@ def _(module, input, output, name, ifmap_name):
 @generate_description.register(nn.Linear)
 def _(module, input, output, name, ifmap_name):
     description = ConvLayerDescription(
+        g=1,
         w=1,
         h=1,
         c=module.in_features,
@@ -139,8 +147,8 @@ def _(module, input, output, name, ifmap_name):
         n=input.shape[0],
         name=name,
         ifmap_name=ifmap_name,
-        filter_name=f'{name}.filter',
-        ofmap_name=f'{name}.out'
+        filter_name=f'{name}_filter',
+        ofmap_name=f'{name}_out'
     )
     return description
 
@@ -155,7 +163,7 @@ def generate_matmul_func(input1, input2, output,
             k = input1.shape[1],
             ifmap1_name = input1_name,
             ifmap2_name = input2_name,
-            ofmap_name = f'{name}.out',
+            ofmap_name = f'{name}_out',
             extra_dims = tuple()
         )
     elif len(input1.shape) > 2 and input1.shape[:-2] == input2.shape[:-2]:
@@ -166,7 +174,7 @@ def generate_matmul_func(input1, input2, output,
             k = input1.shape[1],
             ifmap1_name = input1_name,
             ifmap2_name = input2_name,
-            ofmap_name = f'{name}.out',
+            ofmap_name = f'{name}_out',
             extra_dims = input1.shape[:-2]
         )
     else:
