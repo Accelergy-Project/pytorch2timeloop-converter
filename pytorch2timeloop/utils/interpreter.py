@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class Converter(fx.Interpreter):
-    DEFAULT_BYPASSED_MODULES = Union[
+    DEFAULT_BYPASSED_MODULES = (
         nn.BatchNorm2d,
         nn.Dropout,
         # Elementwise activations
@@ -28,7 +28,7 @@ class Converter(fx.Interpreter):
         nn.Hardswish,
         nn.ReLU,
         nn.ReLU6
-    ]
+    )
 
     DEFAULT_IGNORED_MODULES = tuple()
 
