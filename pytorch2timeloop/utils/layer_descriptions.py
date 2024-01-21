@@ -58,7 +58,8 @@ class ConvLayerDescription(LayerDescription):
         return int((self.h - self.r + 2 * self.h_pad) / self.h_stride) + 1
 
     def to_yaml(self):
-        dims = list(map(lambda n: self.name + '_' + n, 'GCMRSNPQ'))
+        # dims = list(map(lambda n: self.name + '_' + n, 'GCMRSNPQ'))
+        dims = list(map(lambda n: n, 'GCMRSNPQ'))
         (dim_G, dim_C, dim_M, dim_R, dim_S, dim_N, dim_P, dim_Q) = dims
 
         in_channels_per_group = self.c // self.g
@@ -88,7 +89,7 @@ class ConvLayerDescription(LayerDescription):
                 ],
                 'data-spaces': [
                     {
-                        'name': self.filter_name,
+                        'name': 'Weights',
                         'projection': [
                             [[dim_G]],
                             [[dim_C]],
@@ -98,7 +99,7 @@ class ConvLayerDescription(LayerDescription):
                         ]
                     },
                     {
-                        'name': self.ifmap_name,
+                        'name': 'Inputs',
                         'projection': [
                             [[dim_N]],
                             [[dim_G, 'Cgroup'], [f'{dim_C}']],
@@ -107,7 +108,7 @@ class ConvLayerDescription(LayerDescription):
                         ]
                     },
                     {
-                        'name': self.ofmap_name,
+                        'name': 'Outputs',
                         'projection': [
                             [[dim_N]],
                             [[dim_G, 'Mgroup'], [dim_M]],
@@ -130,7 +131,7 @@ class ConvLayerDescription(LayerDescription):
             }
         }
 
-        return config
+        return {'problem': config}
 
     def to_fused_yaml(self):
         dims = list(map(lambda n: self.name + '_' + n, 'GCMRSNPQ'))
@@ -221,11 +222,11 @@ class MaxPoolLayerDescription(LayerDescription):
         config['problem']['instance']['Wstride'] = self.w_stride
         config['problem']['instance']['Hstride'] = self.h_stride
 
-        for dspace in config['problem']['shape']['data-spaces']:
-            if dspace['name'] == 'Inputs':
-                dspace['name'] = self.ifmap_name
-            elif dspace['name'] == 'Outputs':
-                dspace['name'] = self.ofmap_name
+        # for dspace in config['problem']['shape']['data-spaces']:
+        #     if dspace['name'] == 'Inputs':
+        #         dspace['name'] = self.ifmap_name
+        #     elif dspace['name'] == 'Outputs':
+        #         dspace['name'] = self.ofmap_name
         return config
 
     def to_fused_yaml(self):
@@ -324,19 +325,19 @@ class BinaryElementwiseFuncDescription(LayerDescription):
 
         for dspace in config['problem']['shape']['data-spaces']:
             if dspace['name'] == 'Input1':
-                dspace['name'] = self.ifmap1_name
+                # dspace['name'] = self.ifmap1_name
                 dspace['projection'] = []
                 for d, size in zip(dims, self.ifmap1_shape):
                     if size > 1:
                         dspace['projection'].append([[d]])
             elif dspace['name'] == 'Input2':
-                dspace['name'] = self.ifmap2_name
+                # dspace['name'] = self.ifmap2_name
                 dspace['projection'] = []
                 for d, size in zip(dims, self.ifmap2_shape):
                     if size > 1:
                         dspace['projection'].append([[d]])
             elif dspace['name'] == 'Outputs':
-                dspace['name'] = self.ofmap_name
+                # dspace['name'] = self.ofmap_name
                 dspace['projection'] = list(map(
                     lambda d: [[d]],
                     dims
@@ -416,12 +417,12 @@ class MatmulFuncDescription(LayerDescription):
             self.extra_dims = tuple()
 
         for dspace in config['problem']['shape']['data-spaces']:
-            if dspace['name'] == 'Input1':
-                dspace['name'] = self.ifmap1_name
-            elif dspace['name'] == 'Input2':
-                dspace['name'] = self.ifmap2_name
-            elif dspace['name'] == 'Outputs':
-                dspace['name'] = self.ofmap_name
+            # if dspace['name'] == 'Input1':
+            #     dspace['name'] = self.ifmap1_name
+            # elif dspace['name'] == 'Input2':
+            #     dspace['name'] = self.ifmap2_name
+            # elif dspace['name'] == 'Outputs':
+            #     dspace['name'] = self.ofmap_name
             proj_dims = list(map(lambda d: [[d]], dims))
             dspace['projection'] = proj_dims + dspace['projection']
 
@@ -452,13 +453,13 @@ class SoftmaxFuncDescription(LayerDescription):
 
         for dspace in config['problem']['shape']['data-spaces']:
             if dspace['name'] == 'Input':
-                dspace['name'] = self.ifmap_name
+                # dspace['name'] = self.ifmap_name
                 dspace['projection'] = list(map(
                     lambda d: [[d]],
                     dims[:-1]
                 ))
             elif dspace['name'] == 'Output':
-                dspace['name'] = self.ofmap_name
+                # dspace['name'] = self.ofmap_name
                 dspace['projection'] = list(map(
                     lambda d: [[d]],
                     dims[:-1]
