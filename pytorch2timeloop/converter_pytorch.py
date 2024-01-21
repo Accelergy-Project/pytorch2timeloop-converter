@@ -50,7 +50,7 @@ def convert_model(model: nn.Module, input_size: tuple, batch_size: int,
                   model_name: str, save_dir: Path,
                   fuse=False, convert_fc=False,
                   ignored_func=None,
-                  exception_module_names=[]):
+                  exception_module_names=()):
     """
     Convert a PyTorch CNN model to Timeloop problem files.
 
@@ -77,14 +77,14 @@ def convert_model(model: nn.Module, input_size: tuple, batch_size: int,
     )
     sample_input = torch.rand(2, *input_size).type(torch.FloatTensor)
     layer_data = _make_summary(model, sample_input, ignored_func=ignored_func)
-    _convert_from_layer_data(layer_data, model_name, save_dir, fuse=fuse)
+    _convert_from_layer_data(layer_data, model_name, save_dir, exception_module_names, fuse=fuse)
 
 
-def _convert_from_layer_data(layer_data, model_name, save_dir, fuse=False):
+def _convert_from_layer_data(layer_data, model_name, save_dir, exception_module_names=(), fuse=False):
     outdir = os.path.join(save_dir, model_name)
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-
+    layer_data = [p for p in layer_data if not any(e in p.name for e in exception_module_names)]
     if fuse:
         problems = []
         for i in range(0, len(layer_data)):
