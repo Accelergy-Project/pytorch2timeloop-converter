@@ -84,7 +84,11 @@ def _convert_from_layer_data(layer_data, model_name, save_dir, exception_module_
     outdir = os.path.join(save_dir, model_name)
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-    layer_data = [p for p in layer_data if not any(e in p.name for e in exception_module_names)]
+    layer_data = [
+        p for p in layer_data if not any(
+            e.lower() in p.name.lower() or 
+            e.lower() in p.__class__.__name__.lower() 
+            for e in exception_module_names)]
     if fuse:
         problems = []
         for i in range(0, len(layer_data)):
