@@ -5,10 +5,10 @@ Converting pytorch convolutional neural nets and certain transformers to Timeloo
 ### Installing the converter
 After cloning this repository, run `python setup.py install` to finish the installation. Note that this converter has been developed and tested with: 
 
-- python 3.7
-- pytorch 1.7.1
-- torchvision 0.8.2
-- numpy 1.21.2
+- python 3.11
+- pytorch 2.4.0
+- torchvision 0.19.0
+- numpy 2.1.0
 - pyyaml 5.3.1
 
 ### Using the converter

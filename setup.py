@@ -5,9 +5,9 @@ setup(name='pytorch2timeloop',
         url='https://github.com/Accelergy-Project/pytorch2timeloop-converter',
         license='MIT',
         install_requires=[
-            "torch==1.13",
-            "torchvision==0.14",
-            "numpy==1.21",
+            "torch==2.4",
+            "torchvision==0.19",
+            "numpy==2.1",
             "pyyaml==5.3",
             "transformers==4.26.0"
         ],
